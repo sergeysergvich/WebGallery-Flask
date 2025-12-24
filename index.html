@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Галерея изображений</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="stars-background"></div>
+
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <h1><i class="fas fa-camera-retro"></i> Галерея</h1>
+                <div class="stats">
+                    <div class="stat-item">
+                        <i class="fas fa-images"></i>
+                        <span>Всего:
+                            {% set count = namespace(total=0) %}
+                            {% for item in gallery_data %}
+                                {% if item.images %}
+                                    {% set count.total = count.total + item.images|length %}
+                                {% endif %}
+                            {% endfor %}
+                            {{ count.total }}
+                        </span>
+                    </div>
+                    <div class="stat-item">
+                        <i class="fas fa-star"></i>
+                        <span>Избранное: {{ favorites|length }}</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-messages">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">
+                            <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' }}"></i>
+                            {{ message }}
+                            <span class="flash-close" onclick="this.parentElement.remove()">
+                                <i class="fas fa-times"></i>
+                            </span>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <!-- Форма загрузки -->
+        <div class="upload-section">
+            <div class="upload-card">
+                <div class="upload-header">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h2>Загрузить новое изображение</h2>
+                </div>
+                <form action="{{ url_for('upload_file') }}" method="post" enctype="multipart/form-data" class="upload-form">
+                    <div class="file-input-container">
+                        <label for="file" class="file-label">
+                            <i class="fas fa-folder-open"></i>
+                            <span>Выбрать файл с компьютера</span>
+                        </label>
+                        <input type="file" id="file" name="file" accept=".jpg,.jpeg,.png,.gif" required>
+                    </div>
+                    <button type="submit" class="upload-btn">
+                        <i class="fas fa-upload"></i>
+                        <span>Загрузить выбранный файл</span>
+                    </button>
+                    <div class="upload-hint">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Поддерживаемые форматы: JPG, PNG, GIF • Максимальный размер: 16MB</span>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Вкладки -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('all')">
+                <i class="fas fa-th-large"></i>
+                <span>Все изображения</span>
+            </button>
+            <button class="tab-btn" onclick="switchTab('favorites')">
+                <i class="fas fa-star"></i>
+                <span>Избранное</span>
+                <span class="badge">{{ favorites|length }}</span>
+            </button>
+        </div>
+
+        <main>
+            <!-- Галерея всех изображений -->
+            <div id="all-gallery" class="gallery-section active">
+                <div class="gallery-grid">
+                    {% macro display_images(folder) %}
+                        {% for item in folder %}
+                            {% if item.images %}
+                                {% for image in item.images %}
+                                    {% set is_favorite = image in favorites %}
+                                    <div class="image-card" data-image="{{ image }}">
+                                        <div class="image-container">
+                                            <img src="{{ url_for('static', filename=image) }}"
+                                                 alt="Изображение"
+                                                 loading="lazy">
+                                            <div class="image-overlay">
+                                                <div class="image-actions">
+                                                    <button class="action-btn favorite-btn {% if is_favorite %}active{% endif %}"
+                                                            onclick="toggleFavorite(this, '{{ image }}')"
+                                                            title="{{ 'Удалить из избранного' if is_favorite else 'Добавить в избранное' }}">
+                                                        <i class="fas fa-star"></i>
+                                                    </button>
+                                                </div>
+                                                <div class="image-info">
+                                                    <span class="folder-name">
+                                                        <i class="fas fa-folder"></i>
+                                                        {{ item.name }}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="image-footer">
+                                            <span class="image-name">{{ image.split('/')[-1] }}</span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+
+                            {% if item.subfolders %}
+                                {{ display_images(item.subfolders) }}
+                            {% endif %}
+                        {% endfor %}
+                    {% endmacro %}
+
+                    {{ display_images(gallery_data) }}
+                </div>
+
+                {% if not gallery_data or (gallery_data|selectattr('images')|list|length == 0) %}
+                    <div class="empty-state">
+                        <i class="fas fa-images"></i>
+                        <h3>Галерея пуста</h3>
+                        <p>Загрузите первое изображение с помощью формы выше</p>
+                    </div>
+                {% endif %}
+            </div>
+
+            <!-- Галерея избранного -->
+            <div id="favorites-gallery" class="gallery-section">
+                <div class="gallery-grid">
+                    {% for image in favorites %}
+                        <div class="image-card" data-image="{{ image }}">
+                            <div class="image-container">
+                                <img src="{{ url_for('static', filename=image) }}"
+                                     alt="Избранное изображение"
+                                     loading="lazy">
+                                <div class="image-overlay">
+                                    <div class="image-actions">
+                                        <button class="action-btn favorite-btn active"
+                                                onclick="toggleFavorite(this, '{{ image }}')"
+                                                title="Удалить из избранного">
+                                            <i class="fas fa-star"></i>
+                                        </button>
+                                    </div>
+                                    <div class="image-info">
+                                        <span class="favorite-badge">
+                                            <i class="fas fa-heart"></i>
+                                            Избранное
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="image-footer">
+                                <span class="image-name">{{ image.split('/')[-1] }}</span>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                {% if not favorites %}
+                    <div class="empty-state">
+                        <i class="fas fa-star"></i>
+                        <h3>Нет избранных изображений</h3>
+                        <p>Добавьте изображения в избранное, нажав на звёздочку</p>
+                    </div>
+                {% endif %}
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <div class="footer-info">
+                    <i class="fas fa-moon"></i>
+                    <span>Тёмная галерея • Все изображения защищены</span>
+                </div>
+                <div class="footer-stats">
+                    <span>Загружено: {{ count.total }} изображений</span>
+                    <span class="divider">•</span>
+                    <span>Избрано: {{ favorites|length }}</span>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Переключение вкладок
+        function switchTab(tabName) {
+            // Скрыть все секции
+            document.querySelectorAll('.gallery-section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Показать выбранную секцию
+            document.getElementById(tabName + '-gallery').classList.add('active');
+
+            // Обновить активную кнопку вкладки
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.closest('.tab-btn').classList.add('active');
+        }
+
+        // Добавление/удаление из избранного
+        function toggleFavorite(button, imagePath) {
+            const isFavorite = button.classList.contains('active');
+            const action = isFavorite ? 'remove' : 'add';
+
+            // Сразу меняем внешний вид кнопки
+            button.classList.toggle('active');
+
+            // Отправляем запрос на сервер
+            const formData = new FormData();
+            formData.append('image_path', imagePath);
+            formData.append('action', action);
+
+            fetch('/toggle_favorite', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Обновляем счетчики
+                    updateCounters();
+
+                    // Если удаляем из избранного и находимся в разделе избранного
+                    if (action === 'remove' && document.getElementById('favorites-gallery').classList.contains('active')) {
+                        // Удаляем карточку из DOM
+                        const card = button.closest('.image-card');
+                        card.style.opacity = '0';
+                        card.style.transform = 'scale(0.8)';
+
+                        setTimeout(() => {
+                            card.remove();
+
+                            // Если избранных не осталось, показываем сообщение
+                            if (document.querySelectorAll('#favorites-gallery .image-card').length === 0) {
+                                showEmptyFavorites();
+                            }
+                        }, 300);
+                    }
+
+                    // Показываем уведомление
+                    showNotification(
+                        action === 'add' ? 'Добавлено в избранное' : 'Удалено из избранного',
+                        action === 'add' ? 'success' : 'info'
+                    );
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                // Возвращаем кнопку в исходное состояние при ошибке
+                button.classList.toggle('active');
+                showNotification('Ошибка при обновлении избранного', 'error');
+            });
+        }
+
+        // Обновление счетчиков
+        function updateCounters() {
+            // Обновляем счетчик во вкладке
+            const favoritesCount = document.querySelectorAll('.favorite-btn.active').length;
+            const badge = document.querySelector('.tab-btn .badge');
+            if (badge) {
+                badge.textContent = favoritesCount;
+            }
+
+            // Обновляем счетчик в шапке
+            const headerStat = document.querySelector('.header-content .stat-item:nth-child(2) span');
+            if (headerStat) {
+                headerStat.textContent = 'Избранное: ' + favoritesCount;
+            }
+
+            // Обновляем счетчик в футере
+            const footerStat = document.querySelector('.footer-stats span:nth-child(3)');
+            if (footerStat) {
+                footerStat.textContent = 'Избрано: ' + favoritesCount;
+            }
+        }
+
+        // Показать пустое состояние для избранного
+        function showEmptyFavorites() {
+            const favoritesSection = document.getElementById('favorites-gallery');
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            emptyState.innerHTML = `
+                <i class="fas fa-star"></i>
+                <h3>Нет избранных изображений</h3>
+                <p>Добавьте изображения в избранное, нажав на звёздочку</p>
+            `;
+            favoritesSection.appendChild(emptyState);
+        }
+
+        // Показать уведомление
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+                <button class="notification-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+
+            document.body.appendChild(notification);
+
+            // Автоматическое удаление через 3 секунды
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 3000);
+        }
+
+        // Анимация появления карточек
+        document.addEventListener('DOMContentLoaded', function() {
+            const cards = document.querySelectorAll('.image-card');
+            cards.forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.05}s`;
+                card.classList.add('animate-in');
+            });
+        });
+    </script>
+</body>
+</html>
